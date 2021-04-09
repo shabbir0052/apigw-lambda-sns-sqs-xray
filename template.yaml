@@ -1,0 +1,194 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: "AWS::Serverless-2016-10-31"
+
+Parameters:
+  environment:
+    Type: "String"
+    Default: dev
+  nameSpace:
+    Type: "String"
+    Default: csaa-apihub
+  version:
+    Type: "String"
+    Default: v1
+  logRetentionDays:
+    Type: "String"
+    Default: "90"
+
+Resources:
+  pocxrayFunction:
+    Type: "AWS::Serverless::Function"
+    Properties:
+      FunctionName: csaa-apihub-v1-poc-xray
+      Handler: index.handler
+      Runtime: "nodejs12.x"
+      Description: Creates thumbnails of uploaded images
+      MemorySize: 1024
+      Tracing: Active
+      Timeout: 15
+      Policies:
+        - AWSLambdaExecute # Managed Policy
+        - AWSXRayDaemonWriteAccess
+        - Version: "2012-10-17" # Policy Document
+          Statement:
+            - Effect: Allow
+              Sid: "allowaccesstopoctable"
+              Action:
+                - dynamodb:Query
+                - dynamodb:DescribeTable
+                - dynamodb:Scan
+                - dynamodb:BatchWrite*
+                - dynamodb:Update*
+                - dynamodb:PutItem
+                - dynamodb:Get*
+                - dynamodb:DescribeTable
+              Resource: "arn:aws:dynamodb:us-west-2:812883686337:table/csaa-apihub-testdds-poc-table"
+            - Effect: Allow
+              Sid: "ListAndDescribepoctabke"
+              Action:
+                - dynamodb:List*
+                - dynamodb:DescribeTimeToLive
+              Resource: "*"
+            - Effect: Allow
+              Sid: "AllowPublishToPocSNSTopic"
+              Action:
+                - sns:Publish
+              Resource: "arn:aws:sns:us-west-2:812883686337:csaa-apihub-poc-sns-topic"
+      Events:
+        Pocrayapi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref apiGateway
+            Path: /hello
+            Method: GET
+
+  apiProxyIamRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "apigateway.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Description: "property-quote-proxy-iam-role"
+      Path: "/"
+      Policies:
+        - PolicyName: !Sub "cass-apihub-v1-poc-xray-iam-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:DescribeLogGroups"
+                  - "logs:DescribeLogStreams"
+                  - "logs:PutLogEvents"
+                  - "logs:GetLogEvents"
+                  - "logs:FilterLogEvents"
+                Resource: "!Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:API-Gateway-Execution-Logs_*"
+
+  apiGatewayAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "${nameSpace}-${environment}-${version}-poc-xray-api-ApiGatewayAccessLogs"
+      RetentionInDays: !Ref logRetentionDays # Optional: define the number of days to retain logs (default to 30 when not defined as with other AWS services)
+
+  apiGateway:
+    Type: AWS::Serverless::Api
+    DependsOn:
+      - apiGatewayAccessLogGroup
+    Properties:
+      Name: !Sub "${nameSpace}-${environment}-${version}-poc-xray-api"
+      TracingEnabled: true
+      MethodSettings:
+        - LoggingLevel: INFO
+          ResourcePath: "/*"
+          HttpMethod: "*"
+          MetricsEnabled: true
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 100
+          CachingEnabled: true
+          CacheTtlInSeconds: 300
+      EndpointConfiguration:
+        Type: REGIONAL
+      AccessLogSetting:
+        DestinationArn: !GetAtt apiGatewayAccessLogGroup.Arn
+        Format:
+          Fn::Sub: '{"sourceIp":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","protocol":"$context.protocol","status":"$context.status","responseLength":"$context.responseLength","integrationStatus":"$context.integrationStatus.","requestId":"$context.requestId","resourcePath":"$context.resourcePath","errorMessageString":"$context.error.messageString","path":"$context.path","apiId":"$context.apiId","errorMessage":"$context.error.message","integrationLatency":"$context.integrationLatency","integrtionStatus":"$context.integrationStatus.","responseLatency":"$context.responseLatency","identityUserAgent":"$context.identity.userAgent","authorizer_requestId":"$context.authorizer.requestId", "authorizer_latency":"$context.authorizer.latency","authorizer_integrationStatus":"$context.authorizer.integrationStatus","authorizer.status":"$context.authorizer.status","authorizer_error":"$context.authorizer.error","accountId":${AWS::AccountId}}'
+      StageName: !Sub "${environment}"
+
+  pocSqsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: csaa-apihub-poc-sqs
+      MessageRetentionPeriod: 300
+      VisibilityTimeout: 120
+
+  pocSNSTopic:
+    Type: AWS::SNS::Topic
+    DependsOn:
+      - pocSqsQueue
+    Properties:
+      DisplayName: csaa-apihub-poc-sns
+      TopicName: "csaa-apihub-poc-sns-topic"
+      Subscription:
+        - Endpoint:
+            Fn::GetAtt:
+              - "pocSqsQueue"
+              - "Arn"
+          Protocol: "sqs"
+
+  pocSqsQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref pocSqsQueue
+      PolicyDocument:
+        Statement:
+          - Action:
+              - "SQS:SendMessage"
+            Effect: "Allow"
+            Resource: !Ref pocSqsQueue
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref pocSNSTopic
+            Principal:
+              Service:
+                - "sns.amazonaws.com"
+
+  pocSubcriberxrayFunction:
+    Type: "AWS::Serverless::Function"
+    Properties:
+      FunctionName: csaa-apihub-v1-poc-xray-subcriber
+      Handler: index.subHandler
+      Runtime: "nodejs12.x"
+      Description: Subcribe to sqs
+      MemorySize: 1024
+      Tracing: Active
+      Timeout: 15
+      Policies:
+        - AWSLambdaExecute # Managed Policy
+        - AWSXRayDaemonWriteAccess
+        - Version: "2012-10-17" # Policy Document
+          Statement:
+            - Effect: Allow
+              Sid: "allowaccesstopoctable"
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+                - sqs:ChangeMessageVisibility
+              Resource: !GetAtt pocSqsQueue.Arn
+
+  LambdaFunctionEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      Enabled: true
+      EventSourceArn: !GetAtt pocSqsQueue.Arn
+      FunctionName: !Ref pocSubcriberxrayFunction

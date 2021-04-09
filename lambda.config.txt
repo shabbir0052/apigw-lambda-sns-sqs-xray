@@ -1,0 +1,31 @@
+{                                                                                                       
+    "FunctionName": "vpclambda",                                                       
+    "FunctionArn": "arn:aws:lambda:us-west-X:XXXXXXXX7024:function:vpclambda",         
+    "Runtime": "nodejs12.x",                                                                            
+    "Role": "arn:aws:iam::200586167024:role/role-attached-to-lambda",       
+    "Handler": "index.handler",                                                                         
+    "CodeSize": 2807,                                                                                   
+    "Description": "",                                                                                  
+    "Timeout": 3,                                                                                       
+    "MemorySize": 128,                                                                                  
+    "LastModified": "2020-10-30T19:41:32.832+0000",                                                     
+    "CodeSha256": "Qs1hdRo5ItSqTfmOnMFzLd1bY260f1Hl9b3TM+jqDjU=",                                       
+    "Version": "$LATEST",                                                                               
+    "VpcConfig": {                                                                                      
+        "SubnetIds": [                                                                                  
+            "subnet-0f07aaf0c0XXXXXXX",                                                                 
+            "subnet-017f3eddXXXXXXXX"                                                                  
+        ],                                                                                              
+        "SecurityGroupIds": [                                                                           
+            "sg-020f4cfXXXXXXX"                                                                      
+        ],                                                                                              
+        "VpcId": "vpc-0fea1aXXXXXXXXX"                                                                
+    },                                                                                                  
+    "TracingConfig": {                                                                                  
+        "Mode": "PassThrough"                                                                           
+    },                                                                                                  
+    "RevisionId": "3b9a938d-5857-4252-a4a8-d6c48edbfdc9",                                               
+    "State": "Active",                                                                                  
+    "LastUpdateStatus": "Successful"                                                                    
+}                                                                                                       
+                                                                                                        

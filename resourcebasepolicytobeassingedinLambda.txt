@@ -1,0 +1,20 @@
+{
+  "Version": "2012-10-17",
+  "Id": "default",
+  "Statement": [
+    {
+      "Sid": "2d4bf88e-dfa2-4330-9e38-3944cc809cb1",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "apigateway.amazonaws.com"
+      },
+      "Action": "lambda:InvokeFunction",
+      "Resource": "arn:aws:lambda:us-west-2:200586167024:function:*-vpclambda",
+      "Condition": {
+        "ArnLike": {
+          "AWS:SourceArn": "arn:aws:execute-api:us-west-2:XXXX86167024:834etut031/*/GET/zipCodeDetails"
+        }
+      }
+    }
+  ]
+}
