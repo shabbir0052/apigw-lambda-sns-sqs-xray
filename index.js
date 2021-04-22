@@ -39,11 +39,11 @@ albumDetails.Album=faker.music.genre();
 albumDetails.Artist=faker.name.findName();
 await Dao.insertAlbumData(albumDetails);
 
-let tracid= {
+/**let tracid= {
   trace_id : document.trace_id,
   id : document.id
 
-}
+}**/
 
 
 // publishing to sns
@@ -52,7 +52,7 @@ let snsEventRecord = {};
 snsEventRecord.data = {};
 snsEventRecord.data.Album = faker.music.genre();;
 snsEventRecord.data.Artist = faker.name.findName();
-snsEventRecord.data.traceData = tracid;
+//snsEventRecord.data.traceData = tracid;
 
 await Dao.publishEventToSNS(JSON.stringify(snsEventRecord));
 
